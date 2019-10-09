@@ -14,7 +14,7 @@ interface IWebSocketData {
 export interface IWebSocketDataResult {
     timeStamp: number;
     applicationName: string;
-    activeThreadCounts: { [key: string]: IActiveThreadCounts };
+    activeThreadCounts: {[key: string]: IActiveThreadCounts};
 }
 
 export interface IActiveThreadCounts {
@@ -114,6 +114,26 @@ export class RealTimeWebSocketService {
                 return message.type === ResponseType.PING ? (this.send({ type: 'PONG' }), false) : true;
             }),
             map(({result}: {result: IWebSocketDataResult}) => this.parseResult(result)),
+            // map(({timeStamp, applicationName}) => {
+            //     const activeThreadCounts = {};
+            //     for (let i = 0; i < 60; i++) {
+            //         activeThreadCounts[i] = {
+            //             code: 0,
+            //             message: 'OK',
+            //             status: [
+            //                 Math.floor(2 * Math.random()),
+            //                 Math.floor(3 * Math.random()),
+            //                 Math.floor(1 * Math.random()),
+            //                 Math.floor(4 * Math.random())
+            //             ]
+            //         };
+            //     }
+            //     return {
+            //         timeStamp,
+            //         applicationName,
+            //         activeThreadCounts
+            //     };
+            // }),
             timeout(this.delayLimit),
             catchError((err: any) => err.name === 'TimeoutError' ? this.onTimeout() : throwError(err)),
             filter((message: IWebSocketDataResult | null) => {
@@ -134,8 +154,9 @@ export class RealTimeWebSocketService {
     }
 
     private parseResult(result: IWebSocketDataResult): IWebSocketDataResult {
-        const activeThreadCounts = Object.keys(result.activeThreadCounts).reduce((prev: IWebSocketDataResult, curr: string) => {
-            let agentData = result.activeThreadCounts[curr];
+        const {timeStamp, applicationName, activeThreadCounts} = result;
+        const parsedATC = Object.keys(activeThreadCounts).reduce((prev: {[key: string]: IActiveThreadCounts}, curr: string) => {
+            let agentData = activeThreadCounts[curr];
             const responseCode = agentData.code;
 
             switch (responseCode) {
@@ -150,13 +171,14 @@ export class RealTimeWebSocketService {
                 default:
                     break;
             }
+
             return {
                 ...prev,
-                ...{ [curr]: agentData }
+                [curr]: agentData
             };
-        }, {});
+        }, {} as {[key: string]: IActiveThreadCounts});
 
-        return { ...result, ...{ activeThreadCounts } };
+        return {timeStamp, applicationName, activeThreadCounts: parsedATC};
     }
 
     // TODO: No Response 메시지 띄워주기

@@ -8,67 +8,72 @@ import { PageNotFoundComponent } from 'app/shared/components/page-not-found';
 const appRoutes: Routes = [
     {
         path: '',
-        resolve: {
-            configuration: SystemConfigurationResolverService,
-            applicationList: ApplicationListResolverService
-        },
         children: [
             {
-                path: UrlPath.CONFIG,
-                loadChildren: './routes/config-page/index#ConfigPageModule'
-            },
-            {
-                path: UrlPath.ADMIN,
-                loadChildren: './routes/admin-page/index#AdminPageModule'
-            },
-            {
-                path: UrlPath.ERROR,
-                loadChildren: './routes/error-page/index#ErrorPageModule'
-            },
-            {
-                path: UrlPath.BROWSER_NOT_SUPPORT,
-                loadChildren: './routes/browser-support-page/index#BrowserSupportPageModule'
-            },
-            {
-                path: UrlPath.SCATTER_FULL_SCREEN_MODE,
-                loadChildren: './routes/scatter-full-screen-mode-page/index#ScatterFullScreenModePageModule'
-            },
-            {
-                path: UrlPath.THREAD_DUMP,
-                loadChildren: './routes/thread-dump-page/index#ThreadDumpPageModule'
-            },
-            {
-                path: UrlPath.REAL_TIME,
-                loadChildren: './routes/real-time-page/index#RealTimePageModule'
-            },
-            {
-                path: UrlPath.TRANSACTION_VIEW,
-                loadChildren: './routes/transaction-view-page/index#TransactionViewPageModule'
-            },
-            {
-                path: UrlPath.TRANSACTION_DETAIL,
-                loadChildren: './routes/transaction-detail-page/index#TransactionDetailPageModule'
-            },
-            {
-                path: UrlPath.TRANSACTION_LIST,
-                loadChildren: './routes/transaction-list-page/index#TransactionListPageModule'
-            },
-            {
-                path: UrlPath.INSPECTOR,
-                loadChildren: './routes/inspector-page/index#InspectorPageModule'
-            },
-            {
-                path: UrlPath.FILTERED_MAP,
-                loadChildren: './routes/filtered-map-page/index#FilteredMapPageModule'
-            },
-            {
-                path: UrlPath.MAIN,
-                loadChildren: './routes/main-page/index#MainPageModule'
+                path: '',
+                pathMatch: 'full',
+                redirectTo: '/' + UrlPath.MAIN
             },
             {
                 path: '',
-                redirectTo: '/' + UrlPath.MAIN,
-                pathMatch: 'full'
+                resolve: {
+                    configuration: SystemConfigurationResolverService,
+                    applicationList: ApplicationListResolverService
+                },
+                children: [
+                    {
+                        path: UrlPath.CONFIG,
+                        loadChildren: () => import('./routes/config-page/index').then(m => m.ConfigPageModule)
+                    },
+                    {
+                        path: UrlPath.ADMIN,
+                        loadChildren: () => import('./routes/admin-page/index').then(m => m.AdminPageModule)
+                    },
+                    {
+                        path: UrlPath.BROWSER_NOT_SUPPORT,
+                        loadChildren: () => import('./routes/browser-support-page/index').then(m => m.BrowserSupportPageModule)
+                    },
+                    {
+                        path: UrlPath.SCATTER_FULL_SCREEN_MODE,
+                        loadChildren: () => import('./routes/scatter-full-screen-mode-page/index').then(m => m.ScatterFullScreenModePageModule)
+                    },
+                    {
+                        path: UrlPath.THREAD_DUMP,
+                        loadChildren: () => import('./routes/thread-dump-page/index').then(m => m.ThreadDumpPageModule)
+                    },
+                    {
+                        path: UrlPath.REAL_TIME,
+                        loadChildren: () => import('./routes/real-time-page/index').then(m => m.RealTimePageModule)
+                    },
+                    {
+                        path: UrlPath.TRANSACTION_VIEW,
+                        loadChildren: () => import('./routes/transaction-view-page/index').then(m => m.TransactionViewPageModule)
+                    },
+                    {
+                        path: UrlPath.TRANSACTION_DETAIL,
+                        loadChildren: () => import('./routes/transaction-detail-page/index').then(m => m.TransactionDetailPageModule)
+                    },
+                    {
+                        path: UrlPath.TRANSACTION_LIST,
+                        loadChildren: () => import('./routes/transaction-list-page/index').then(m => m.TransactionListPageModule)
+                    },
+                    {
+                        path: UrlPath.INSPECTOR,
+                        loadChildren: () => import('./routes/inspector-page/index').then(m => m.InspectorPageModule)
+                    },
+                    {
+                        path: UrlPath.FILTERED_MAP,
+                        loadChildren: () => import('./routes/filtered-map-page/index').then(m => m.FilteredMapPageModule)
+                    },
+                    {
+                        path: UrlPath.MAIN,
+                        loadChildren: () => import('./routes/main-page/index').then(m => m.MainPageModule)
+                    },
+                ]
+            },
+            {
+                path: UrlPath.ERROR,
+                loadChildren: () => import('./routes/error-page/index').then(m => m.ErrorPageModule)
             },
             {
                 path: '**',

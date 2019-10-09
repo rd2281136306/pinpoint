@@ -1,11 +1,11 @@
 /*
- * Copyright 2014 NAVER Corp.
+ * Copyright 2019 NAVER Corp.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,15 +17,16 @@
 package com.navercorp.pinpoint.web.service;
 
 import com.navercorp.pinpoint.common.server.bo.SpanBo;
-import com.navercorp.pinpoint.common.util.TransactionId;
+import com.navercorp.pinpoint.common.profiler.util.TransactionId;
 import com.navercorp.pinpoint.web.dao.ApplicationTraceIndexDao;
 import com.navercorp.pinpoint.web.dao.TraceDao;
 import com.navercorp.pinpoint.web.filter.Filter;
 import com.navercorp.pinpoint.web.scatter.ScatterData;
+import com.navercorp.pinpoint.web.vo.GetTraceInfo;
 import com.navercorp.pinpoint.web.vo.Range;
 import com.navercorp.pinpoint.web.vo.SelectedScatterArea;
-import com.navercorp.pinpoint.web.vo.TransactionMetadataQuery;
 import com.navercorp.pinpoint.web.vo.scatter.Dot;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -99,38 +100,16 @@ public class ScatterChartServiceImpl implements ScatterChartService {
      * Queries for details on dots selected from the scatter chart.
      */
     @Override
-    public List<SpanBo> selectTransactionMetadata(final TransactionMetadataQuery query) {
-        if (query == null) {
+    public List<SpanBo> selectTransactionMetadata(final List<GetTraceInfo> getTraceInfoList) {
+        if (getTraceInfoList == null) {
             throw new NullPointerException("query must not be null");
         }
-        final List<TransactionId> transactionIdList = query.getTransactionIdList();
-        final List<List<SpanBo>> selectedSpans = traceDao.selectSpans(transactionIdList);
+        final List<List<SpanBo>> selectedSpans = traceDao.selectSpans(getTraceInfoList);
 
 
-        final List<SpanBo> result = new ArrayList<>(query.size());
-        int index = 0;
+        final List<SpanBo> result = new ArrayList<>(getTraceInfoList.size());
         for (List<SpanBo> spans : selectedSpans) {
-            if (spans.isEmpty()) {
-                // span data does not exist in storage - skip
-            } else if (spans.size() == 1) {
-                // case with a single unique span data
-                result.add(spans.get(0));
-            } else {
-                // for recursive calls, we need to identify which of the spans was selected.
-                // pick only the spans with the same transactionId, collectorAcceptor, and responseTime
-                for (SpanBo span : spans) {
-
-                    // should find the filtering condition with the correct index
-                    final TransactionMetadataQuery.QueryCondition filterQueryCondition = query.getQueryConditionByIndex(index);
-
-                    final TransactionId transactionId = span.getTransactionId();
-                    final TransactionMetadataQuery.QueryCondition queryConditionKey = new TransactionMetadataQuery.QueryCondition(transactionId, span.getCollectorAcceptTime(), span.getElapsed());
-                    if (queryConditionKey.equals(filterQueryCondition)) {
-                        result.add(span);
-                    }
-                }
-            }
-            index++;
+            result.addAll(spans);
         }
 
         return result;

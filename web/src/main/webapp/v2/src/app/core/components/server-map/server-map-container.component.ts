@@ -32,16 +32,18 @@ export class ServerMapContainerComponent implements OnInit, OnDestroy {
     i18nText: { [key: string]: string } = {
         NO_AGENTS: ''
     };
+    mapData: ServerMapData;
     funcServerMapImagePath: Function;
     baseApplicationKey: string;
     showOverview = false;
     showLoading = true;
     useDisable = true;
-    mapData: ServerMapData;
     endTime: string;
     period: string;
     constructor(
         private router: Router,
+        private injector: Injector,
+        private componentFactoryResolver: ComponentFactoryResolver,
         private storeHelperService: StoreHelperService,
         private translateService: TranslateService,
         private urlRouteManagerService: UrlRouteManagerService,
@@ -50,8 +52,6 @@ export class ServerMapContainerComponent implements OnInit, OnDestroy {
         private webAppSettingDataService: WebAppSettingDataService,
         private dynamicPopupService: DynamicPopupService,
         private analyticsService: AnalyticsService,
-        private componentFactoryResolver: ComponentFactoryResolver,
-        private injector: Injector,
         @Inject(SERVER_MAP_TYPE) public type: ServerMapType
     ) {}
     ngOnInit() {
@@ -65,31 +65,30 @@ export class ServerMapContainerComponent implements OnInit, OnDestroy {
                 if (urlService.isRealTimeMode()) {
                     const endTime = urlService.getUrlServerTimeData();
                     const period = this.webAppSettingDataService.getSystemDefaultPeriod();
+
                     this.initVarBeforeDataLoad(
                         EndTime.formatDate(endTime),
                         period.getValueWithTime(),
                         urlService.getPathValue(UrlPathId.APPLICATION)
                     );
-                    return [endTime - (period.getValue() * 60 * 1000), endTime];
+
+                    return [endTime - period.getMiliSeconds(), endTime];
                 } else {
-                    this.storeHelperService.dispatch(new Actions.UpdateServerMapTargetSelected(null));
                     this.initVarBeforeDataLoad(
                         urlService.getPathValue(UrlPathId.END_TIME).getEndTime(),
                         urlService.getPathValue(UrlPathId.PERIOD).getValueWithTime(),
                         urlService.getPathValue(UrlPathId.APPLICATION)
                     );
+
                     return [urlService.getStartTimeToNumber(), urlService.getEndTimeToNumber()];
                 }
             }),
-            switchMap((range: number[]) => {
-                return this.serverMapDataService.getData(range);
-            })
+            switchMap((range: number[]) => this.serverMapDataService.getData(range))
         ).subscribe((res: IServerMapInfo) => {
             this.mapData = new ServerMapData(res.applicationMapData.nodeDataArray, res.applicationMapData.linkDataArray);
             this.storeHelperService.dispatch(new Actions.UpdateServerMapData(this.mapData));
-            if (this.hasNodeData() === false) {
+            if (!this.hasNodeData()) {
                 this.showLoading = false;
-                this.storeHelperService.dispatch(new Actions.UpdateServerMapTargetSelected(null));
             }
         }, (error: IServerErrorFormat) => {
             this.dynamicPopupService.openPopup({
@@ -111,20 +110,23 @@ export class ServerMapContainerComponent implements OnInit, OnDestroy {
                 injector: this.injector
             });
         });
-        this.storeHelperService.getServerMapDisableState(this.unsubscribe).subscribe((disabled: boolean) => {
-            this.useDisable = disabled;
-        });
+        this.connectStore();
     }
     ngOnDestroy() {
         this.unsubscribe.next();
         this.unsubscribe.complete();
+    }
+    private connectStore(): void {
+        this.storeHelperService.getServerMapDisableState(this.unsubscribe).subscribe((disabled: boolean) => {
+            this.useDisable = disabled;
+        });
     }
     private addPageLoadingHandler(): void {
         this.router.events.pipe(
             filter((e: RouterEvent) => {
                 return e instanceof NavigationStart;
             })
-        ).subscribe((e) => {
+        ).subscribe(() => {
             this.showLoading = true;
             this.useDisable = true;
         });
@@ -174,6 +176,7 @@ export class ServerMapContainerComponent implements OnInit, OnDestroy {
             }
         } else {
             payload = {
+                clickParam: nodeData.clickParam,
                 period: this.period,
                 endTime: this.endTime,
                 isAuthorized: nodeData.isAuthorized,

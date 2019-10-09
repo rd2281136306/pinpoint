@@ -1,11 +1,11 @@
 /*
- * Copyright 2014 NAVER Corp.
+ * Copyright 2019 NAVER Corp.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,12 +17,17 @@
 package com.navercorp.pinpoint.collector.dao.hbase;
 
 import com.navercorp.pinpoint.collector.dao.MapResponseTimeDao;
-import com.navercorp.pinpoint.collector.dao.hbase.statistics.*;
-import com.navercorp.pinpoint.common.hbase.TableNameProvider;
-import com.navercorp.pinpoint.common.server.util.AcceptedTimeService;
+import com.navercorp.pinpoint.collector.dao.hbase.statistics.BulkIncrementer;
+import com.navercorp.pinpoint.collector.dao.hbase.statistics.CallRowKey;
+import com.navercorp.pinpoint.collector.dao.hbase.statistics.ColumnName;
+import com.navercorp.pinpoint.collector.dao.hbase.statistics.ResponseColumnName;
+import com.navercorp.pinpoint.collector.dao.hbase.statistics.RowKey;
+import com.navercorp.pinpoint.common.hbase.HbaseColumnFamily;
 import com.navercorp.pinpoint.common.hbase.HbaseOperations2;
+import com.navercorp.pinpoint.common.hbase.TableDescriptor;
+import com.navercorp.pinpoint.common.server.util.AcceptedTimeService;
 import com.navercorp.pinpoint.common.trace.ServiceType;
-import com.navercorp.pinpoint.common.util.ApplicationMapStatisticsUtils;
+import com.navercorp.pinpoint.common.profiler.util.ApplicationMapStatisticsUtils;
 import com.navercorp.pinpoint.common.util.TimeSlot;
 
 import com.sematext.hbase.wd.RowKeyDistributorByHashPrefix;
@@ -36,8 +41,6 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Map;
-
-import static com.navercorp.pinpoint.common.hbase.HBaseTables.*;
 
 /**
  * Save response time data of WAS
@@ -56,9 +59,6 @@ public class HbaseMapResponseTimeDao implements MapResponseTimeDao {
     private HbaseOperations2 hbaseTemplate;
 
     @Autowired
-    private TableNameProvider tableNameProvider;
-
-    @Autowired
     private AcceptedTimeService acceptedTimeService;
 
     @Autowired
@@ -73,6 +73,9 @@ public class HbaseMapResponseTimeDao implements MapResponseTimeDao {
     private RowKeyDistributorByHashPrefix rowKeyDistributorByHashPrefix;
 
     private final boolean useBulk;
+
+    @Autowired
+    private TableDescriptor<HbaseColumnFamily.SelfStatMap> descriptor;
 
     public HbaseMapResponseTimeDao() {
         this(true);
@@ -103,7 +106,7 @@ public class HbaseMapResponseTimeDao implements MapResponseTimeDao {
         final short slotNumber = ApplicationMapStatisticsUtils.getSlotNumber(applicationServiceType, elapsed, isError);
         final ColumnName selfColumnName = new ResponseColumnName(agentId, slotNumber);
         if (useBulk) {
-            TableName mapStatisticsSelfTableName = tableNameProvider.getTableName(MAP_STATISTICS_SELF_VER2_STR);
+            TableName mapStatisticsSelfTableName = descriptor.getTableName();
             bulkIncrementer.increment(mapStatisticsSelfTableName, selfRowKey, selfColumnName);
         } else {
             final byte[] rowKey = getDistributedKey(selfRowKey.getRowKey());
@@ -120,8 +123,8 @@ public class HbaseMapResponseTimeDao implements MapResponseTimeDao {
         if (columnName == null) {
             throw new NullPointerException("columnName must not be null");
         }
-        TableName mapStatisticsSelfTableName = tableNameProvider.getTableName(MAP_STATISTICS_SELF_VER2_STR);
-        hbaseTemplate.incrementColumnValue(mapStatisticsSelfTableName, rowKey, MAP_STATISTICS_SELF_VER2_CF_COUNTER, columnName, increment);
+        TableName mapStatisticsSelfTableName = descriptor.getTableName();
+        hbaseTemplate.incrementColumnValue(mapStatisticsSelfTableName, rowKey, descriptor.getColumnFamilyName(), columnName, increment);
     }
 
 
@@ -145,4 +148,5 @@ public class HbaseMapResponseTimeDao implements MapResponseTimeDao {
     private byte[] getDistributedKey(byte[] rowKey) {
         return rowKeyDistributorByHashPrefix.getDistributedKey(rowKey);
     }
+
 }

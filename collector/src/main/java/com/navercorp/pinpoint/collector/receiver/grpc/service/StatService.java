@@ -17,9 +17,15 @@
 package com.navercorp.pinpoint.collector.receiver.grpc.service;
 
 import com.google.protobuf.Empty;
+import com.google.protobuf.GeneratedMessageV3;
 import com.navercorp.pinpoint.collector.receiver.DispatchHandler;
+import com.navercorp.pinpoint.common.annotations.VisibleForTesting;
+import com.navercorp.pinpoint.grpc.MessageFormatUtils;
+import com.navercorp.pinpoint.grpc.StatusError;
+import com.navercorp.pinpoint.grpc.StatusErrors;
 import com.navercorp.pinpoint.grpc.trace.PAgentStat;
 import com.navercorp.pinpoint.grpc.trace.PAgentStatBatch;
+import com.navercorp.pinpoint.grpc.trace.PStatMessage;
 import com.navercorp.pinpoint.grpc.trace.StatGrpc;
 import com.navercorp.pinpoint.io.header.Header;
 import com.navercorp.pinpoint.io.header.HeaderEntity;
@@ -28,38 +34,66 @@ import com.navercorp.pinpoint.io.request.DefaultMessage;
 import com.navercorp.pinpoint.io.request.Message;
 import com.navercorp.pinpoint.io.request.ServerRequest;
 import com.navercorp.pinpoint.thrift.io.DefaultTBaseLocator;
+import io.grpc.Context;
+import io.grpc.Status;
 import io.grpc.StatusException;
+import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
 import java.util.Objects;
+import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 
+/**
+ * @author jaehong.kim
+ */
 public class StatService extends StatGrpc.StatImplBase {
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
+    private final boolean isDebug = logger.isDebugEnabled();
 
     private final DispatchHandler dispatchHandler;
     private final ServerRequestFactory serverRequestFactory = new ServerRequestFactory();
+    private final Executor executor;
 
-    public StatService(DispatchHandler dispatchHandler) {
+    public StatService(DispatchHandler dispatchHandler, Executor executor) {
         this.dispatchHandler = Objects.requireNonNull(dispatchHandler, "dispatchHandler must not be null");
+        Objects.requireNonNull(executor, "executor must not be null");
+        this.executor = Context.currentContextExecutor(executor);
     }
 
     @Override
-    public StreamObserver<PAgentStat> sendAgentStat(StreamObserver<Empty> responseObserver) {
-        StreamObserver<PAgentStat> observer = new StreamObserver<PAgentStat>() {
+    public StreamObserver<PStatMessage> sendAgentStat(StreamObserver<Empty> responseObserver) {
+        StreamObserver<PStatMessage> observer = new StreamObserver<PStatMessage>() {
             @Override
-            public void onNext(PAgentStat agentStat) {
-                final Header header = new HeaderV2(Header.SIGNATURE, HeaderV2.VERSION, DefaultTBaseLocator.AGENT_STAT);
-                final HeaderEntity headerEntity = new HeaderEntity(new HashMap<>());
-                final Message<PAgentStat> message = new DefaultMessage<PAgentStat>(header, headerEntity, agentStat);
-                send(responseObserver, message);
+            public void onNext(PStatMessage statMessage) {
+                if (isDebug) {
+                    logger.debug("Send PAgentStat={}", MessageFormatUtils.debugLog(statMessage));
+                }
+
+                if (statMessage.hasAgentStat()) {
+                    final Message<PAgentStat> message = newMessage(statMessage.getAgentStat(), DefaultTBaseLocator.AGENT_STAT);
+                    doExecutor(message, responseObserver);
+                } else if (statMessage.hasAgentStatBatch()) {
+                    final Message<PAgentStatBatch> message = newMessage(statMessage.getAgentStatBatch(), DefaultTBaseLocator.AGENT_STAT_BATCH);
+                    doExecutor(message, responseObserver);
+                } else {
+                    if (isDebug) {
+                        logger.debug("Found empty stat message {}", MessageFormatUtils.debugLog(statMessage));
+                    }
+                }
             }
 
             @Override
             public void onError(Throwable throwable) {
-                logger.warn("Failed to send agent stat", throwable);
+                final StatusError statusError = StatusErrors.throwable(throwable);
+                if (statusError.isSimpleError()) {
+                    logger.info("Failed to stat stream, cause={}", statusError.getMessage());
+                } else {
+                    logger.warn("Failed to stat stream, cause={}", statusError.getMessage(), statusError.getThrowable());
+                }
             }
 
             @Override
@@ -72,41 +106,40 @@ public class StatService extends StatGrpc.StatImplBase {
         return observer;
     }
 
-    @Override
-    public StreamObserver<PAgentStatBatch> sendAgentStatBatch(StreamObserver<Empty> responseObserver) {
-        StreamObserver<PAgentStatBatch> observer = new StreamObserver<PAgentStatBatch>() {
-            @Override
-            public void onNext(PAgentStatBatch agentStatBatch) {
-                final Header header = new HeaderV2(Header.SIGNATURE, HeaderV2.VERSION, DefaultTBaseLocator.AGENT_STAT);
-                final HeaderEntity headerEntity = new HeaderEntity(new HashMap<>());
-                final Message<PAgentStatBatch> message = new DefaultMessage<PAgentStatBatch>(header, headerEntity, agentStatBatch);
-                send(responseObserver, message);
-            }
-
-            @Override
-            public void onError(Throwable throwable) {
-                throwable.printStackTrace();
-            }
-
-            @Override
-            public void onCompleted() {
-                responseObserver.onNext(Empty.newBuilder().build());
-                responseObserver.onCompleted();
-            }
-        };
-
-        return observer;
+    private <T> Message<T> newMessage(T requestData, short serviceType) {
+        final Header header = new HeaderV2(Header.SIGNATURE, HeaderV2.VERSION, serviceType);
+        final HeaderEntity headerEntity = new HeaderEntity(new HashMap<>());
+        return new DefaultMessage<>(header, headerEntity, requestData);
     }
 
-    private void send(StreamObserver<Empty> responseObserver, final Message<?> message) {
-        ServerRequest<?> request;
+
+    @VisibleForTesting
+    void doExecutor(final Message<? extends GeneratedMessageV3> message, StreamObserver<Empty> responseObserver) {
         try {
-            request = serverRequestFactory.newServerRequest(message);
-        } catch (StatusException e) {
-            logger.warn("serverRequest create fail Caused by:" + e.getMessage(), e);
-            responseObserver.onError(e);
-            return;
+            executor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    send(message, responseObserver);
+                }
+            });
+        } catch (RejectedExecutionException ree) {
+            // Defense code
+            logger.warn("Failed to request. Rejected execution, executor={}", executor);
         }
-        this.dispatchHandler.dispatchSendMessage(request);
+    }
+
+    private void send(final Message<? extends GeneratedMessageV3> message, StreamObserver<Empty> responseObserver) {
+        try {
+            ServerRequest<?> request = serverRequestFactory.newServerRequest(message);
+            this.dispatchHandler.dispatchSendMessage(request);
+        } catch (Exception e) {
+            logger.warn("Failed to request. message={}", message, e);
+            if (e instanceof StatusException || e instanceof StatusRuntimeException) {
+                responseObserver.onError(e);
+            } else {
+                // Avoid detailed exception
+                responseObserver.onError(Status.INTERNAL.withDescription("Bad Request").asException());
+            }
+        }
     }
 }

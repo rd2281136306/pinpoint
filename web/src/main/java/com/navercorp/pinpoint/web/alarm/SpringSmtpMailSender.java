@@ -20,7 +20,7 @@ import com.navercorp.pinpoint.web.batch.BatchConfiguration;
 import com.navercorp.pinpoint.web.service.UserGroupService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.mail.SimpleMailMessage;
+import org.springframework.batch.core.StepExecution;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.util.Assert;
 
@@ -62,7 +62,7 @@ public class SpringSmtpMailSender implements MailSender {
     }
 
     @Override
-    public void sendEmail(AlarmChecker checker, int sequenceCount) {
+    public void sendEmail(AlarmChecker checker, int sequenceCount, StepExecution stepExecution) {
         List<String> receivers = userGroupService.selectEmailOfMember(checker.getuserGroupId());
 
         if (receivers.size() == 0) {

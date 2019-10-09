@@ -1,5 +1,5 @@
-
 import { NgModule, ModuleWithProviders } from '@angular/core';
+import { RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ClipboardModule } from 'ngx-clipboard';
@@ -22,7 +22,6 @@ import { AnalyticsService } from './services/analytics.service';
 import { BrowserSupportCheckService } from './services/browser-support-check.service';
 import { AgentHistogramDataService } from './services/agent-histogram-data.service';
 import { TransactionDetailDataService } from './services/transaction-detail-data.service';
-import { TransactionViewTypeService } from './services/transaction-view-type.service';
 import { StoreHelperService } from './services/store-helper.service';
 import { UrlValidateGuard } from './services/url-validate.guard';
 
@@ -34,7 +33,6 @@ import { FilmForDisableComponent } from './components/film-for-disable';
 import { SimpleProgressSliderComponent } from './components/simple-progress-slider';
 import { FormFieldErrorMessageComponent } from './components/form-field-error-message';
 import { ServerErrorMessageComponent } from './components/server-error-message';
-import { SettingHeightDirective } from './directives/setting-height.directive';
 import { ContextPopupDirective } from './directives/context-popup.directive';
 import { SplitterDirective } from './directives/splitter.directive';
 import { SearchInputDirective } from './directives/search-input.directive';
@@ -44,6 +42,8 @@ import { DynamicPopupService } from './services/dynamic-popup.service';
 import { MessageQueueService } from './services/message-queue.service';
 import { WindowRefService } from './services/window-ref.service';
 import { ApplicationListDataService } from './services/application-list-data.service';
+import { SafeStylePipe } from './pipes/safe-style.pipe';
+import { RetryComponent } from './components/retry';
 
 @NgModule({
     declarations: [
@@ -52,23 +52,26 @@ import { ApplicationListDataService } from './services/application-list-data.ser
         EmptyContentsComponent,
         UrlRedirectorComponent,
         LoadingComponent,
+        RetryComponent,
         FilmForDisableComponent,
         SimpleProgressSliderComponent,
         FormFieldErrorMessageComponent,
         ServerErrorMessageComponent,
         SafeHtmlPipe,
+        SafeStylePipe,
         JSONTextParserPipe,
-        SettingHeightDirective,
         ContextPopupDirective,
         SplitterDirective,
         SearchInputDirective
     ],
     imports: [
         CommonModule,
+        RouterModule,
         ClickOutsideModule
     ],
     exports: [
         CommonModule,
+        RouterModule,
         FormsModule,
         ClipboardModule,
         ClickOutsideModule,
@@ -76,13 +79,14 @@ import { ApplicationListDataService } from './services/application-list-data.ser
         EmptyContentsComponent,
         UrlRedirectorComponent,
         LoadingComponent,
+        RetryComponent,
         FilmForDisableComponent,
         SimpleProgressSliderComponent,
         FormFieldErrorMessageComponent,
         ServerErrorMessageComponent,
         SafeHtmlPipe,
+        SafeStylePipe,
         JSONTextParserPipe,
-        SettingHeightDirective,
         ContextPopupDirective,
         SplitterDirective,
         SearchInputDirective
@@ -113,7 +117,6 @@ export class SharedModule {
                 BrowserSupportCheckService,
                 AgentHistogramDataService,
                 TransactionDetailDataService,
-                TransactionViewTypeService,
                 MessageQueueService,
                 DynamicPopupService,
                 ApplicationListResolverService,

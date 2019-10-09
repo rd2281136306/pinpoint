@@ -18,14 +18,13 @@ package com.navercorp.pinpoint.bootstrap.java9.module;
 
 
 import com.navercorp.pinpoint.bootstrap.module.JavaModule;
+import com.navercorp.pinpoint.bootstrap.module.Providers;
 import jdk.internal.module.Modules;
 
 import java.lang.instrument.Instrumentation;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 /**
  * @author Woonduk Kang(emeroad)
@@ -122,6 +121,9 @@ public class ModuleSupport {
         // at pinpoint.agent/pinpoint.agent/com.navercorp.pinpoint.profiler.instrument.classloading.URLClassLoaderHandler.<clinit>(URLClassLoaderHandler.java:44)
         JavaModule baseModule = getJavaBaseModule();
         baseModule.addOpens("java.net", agentModule);
+        // java.lang.reflect.InaccessibleObjectException: Unable to make private java.nio.DirectByteBuffer(long,int) accessible: module java.base does not "opens java.nio" to module pinpoint.agent
+        //   at java.base/java.lang.reflect.AccessibleObject.checkCanSetAccessible(AccessibleObject.java:337)
+        baseModule.addOpens("java.nio", agentModule);
 
         // for Java9DefineClass
         baseModule.addExports("jdk.internal.misc", agentModule);
@@ -135,6 +137,10 @@ public class ModuleSupport {
         // DefaultCpuLoadMetric : com.sun.management.OperatingSystemMXBean
         final JavaModule jdkManagement = loadModule("jdk.management");
         agentModule.addReads(jdkManagement);
+
+        // for grpc's NameResolverProvider
+        final JavaModule jdkUnsupported = loadModule("jdk.unsupported");
+        agentModule.addReads(jdkUnsupported);
 
 //        LongAdder
 //        final Module unsupportedModule = loadModule("jdk.unsupported");
@@ -152,15 +158,29 @@ public class ModuleSupport {
         Class<?> serviceClazz = forName(serviceClassName, classLoader);
         agentModule.addUses(serviceClazz);
 
-        // Add provides
-        final ServiceLoaderClassPathLookupHelper serviceLoaderClassPathLookupHelper = new ServiceLoaderClassPathLookupHelper(classLoader);
-        final Set<String> serviceProviderClassNameSet = serviceLoaderClassPathLookupHelper.lookup(serviceClassName);
-        final List<Class<?>> providerClassList = new ArrayList<>();
-        for (String providerClassName : serviceProviderClassNameSet) {
-            Class<?> providerClazz = forName(providerClassName, classLoader);
-            providerClassList.add(providerClazz);
+        final String nameResolverProviderName = "io.grpc.NameResolverProvider";
+        Class<?> nameResolverProviderClazz = forName(nameResolverProviderName, classLoader);
+        agentModule.addUses(nameResolverProviderClazz);
+
+        List<Providers> providersList = agentModule.getProviders();
+        for (Providers providers : providersList) {
+//            if (!serviceClassName.equals(providers.getService())) {
+//                // filter unknown service
+//                continue;
+//            }
+            Class<?> serviceClass = forName(providers.getService(), classLoader);
+            List<Class<?>> providerClassList = loadProviderClassList(providers.getProviders(), classLoader);
+            agentModule.addProvides(serviceClass, providerClassList);
         }
-        agentModule.addProvides(serviceClazz, providerClassList);
+    }
+
+    private List<Class<?>> loadProviderClassList(List<String> classNameList, ClassLoader classLoader) {
+        List<Class<?>> providerClassList = new ArrayList<>();
+        for (String providerClassName : classNameList) {
+            Class<?> providerClass = forName(providerClassName, classLoader);
+            providerClassList.add(providerClass);
+        }
+        return providerClassList;
     }
 
     private Class<?> forName(String className, ClassLoader classLoader) {

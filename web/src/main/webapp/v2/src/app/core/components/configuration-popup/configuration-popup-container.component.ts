@@ -1,6 +1,6 @@
 import { Component, OnInit, Output, EventEmitter, AfterViewInit, Input, ElementRef } from '@angular/core';
 
-import { DynamicPopup, WindowRefService, PopupConstant, UrlRouteManagerService } from 'app/shared/services';
+import { DynamicPopup, WindowRefService, PopupConstant, UrlRouteManagerService, AnalyticsService, TRACKED_EVENT_LIST } from 'app/shared/services';
 
 @Component({
     selector: 'pp-configuration-popup-container',
@@ -17,11 +17,14 @@ export class ConfigurationPopupContainerComponent implements OnInit, AfterViewIn
     constructor(
         private urlRouteManagerService: UrlRouteManagerService,
         private windowRefService: WindowRefService,
+        private analyticsService: AnalyticsService,
         private el: ElementRef
     ) {}
 
     ngOnInit() {
-        this.posX = this.windowRefService.nativeWindow.innerWidth - this.el.nativeElement.offsetWidth;
+        this.posX = this.coord.coordX - PopupConstant.SPACE_FROM_LEFT + this.el.nativeElement.offsetWidth <= this.windowRefService.nativeWindow.innerWidth
+            ? this.coord.coordX - PopupConstant.SPACE_FROM_LEFT
+            : this.windowRefService.nativeWindow.innerWidth - this.el.nativeElement.offsetWidth;
     }
 
     ngAfterViewInit() {
@@ -32,7 +35,7 @@ export class ConfigurationPopupContainerComponent implements OnInit, AfterViewIn
     }
 
     calculateTooltipCaretLeft(tooltipCaret: HTMLElement): string {
-        const { coordX } = this.coord;
+        const {coordX} = this.coord;
 
         return `${coordX - this.posX - (tooltipCaret.offsetWidth / 2)}px`;
     }
@@ -42,13 +45,21 @@ export class ConfigurationPopupContainerComponent implements OnInit, AfterViewIn
     }
 
     onMenuClick(type: string): void {
+        this.analyticsService.trackEvent(TRACKED_EVENT_LIST.CLICK_CONFIGURATION_MENU, type);
         this.urlRouteManagerService.moveToConfigPage(type);
         this.outClose.emit();
     }
 
     onOpenLink(): void {
+        this.analyticsService.trackEvent(TRACKED_EVENT_LIST.CLICK_GITHUB_LINK);
         this.windowRefService.nativeWindow.open('http://github.com/naver/pinpoint');
         this.outClose.emit();
+    }
+
+    onOpenV1(): void {
+        const {origin, pathname} = this.windowRefService.nativeWindow.location;
+
+        this.windowRefService.nativeWindow.location.href = `${origin}${pathname.replace('v2', '#')}`;
     }
 
     onClickOutside(): void {

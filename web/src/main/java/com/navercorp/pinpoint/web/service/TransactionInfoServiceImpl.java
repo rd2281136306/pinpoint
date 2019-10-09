@@ -1,11 +1,11 @@
 /*
- * Copyright 2014 NAVER Corp.
+ * Copyright 2019 NAVER Corp.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,18 +16,14 @@
 
 package com.navercorp.pinpoint.web.service;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-
 import com.navercorp.pinpoint.common.server.bo.AnnotationBo;
 import com.navercorp.pinpoint.common.server.bo.Event;
 import com.navercorp.pinpoint.common.server.bo.SpanBo;
-import com.navercorp.pinpoint.loader.service.AnnotationKeyRegistryService;
-import com.navercorp.pinpoint.loader.service.ServiceTypeRegistryService;
 import com.navercorp.pinpoint.common.trace.AnnotationKeyMatcher;
 import com.navercorp.pinpoint.common.trace.LoggingInfo;
-import com.navercorp.pinpoint.common.util.TransactionId;
+import com.navercorp.pinpoint.common.profiler.util.TransactionId;
+import com.navercorp.pinpoint.loader.service.AnnotationKeyRegistryService;
+import com.navercorp.pinpoint.loader.service.ServiceTypeRegistryService;
 import com.navercorp.pinpoint.web.calltree.span.Align;
 import com.navercorp.pinpoint.web.calltree.span.CallTreeIterator;
 import com.navercorp.pinpoint.web.calltree.span.CallTreeNode;
@@ -36,6 +32,7 @@ import com.navercorp.pinpoint.web.filter.Filter;
 import com.navercorp.pinpoint.web.security.MetaDataFilter;
 import com.navercorp.pinpoint.web.security.MetaDataFilter.MetaData;
 import com.navercorp.pinpoint.web.vo.BusinessTransactions;
+import com.navercorp.pinpoint.web.vo.GetTraceInfo;
 import com.navercorp.pinpoint.web.vo.Range;
 import com.navercorp.pinpoint.web.vo.callstacks.Record;
 import com.navercorp.pinpoint.web.vo.callstacks.RecordFactory;
@@ -47,6 +44,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 
 /**
  *
@@ -104,8 +105,12 @@ public class TransactionInfoServiceImpl implements TransactionInfoService {
 
         List<List<SpanBo>> traceList;
 
-        if (filter == Filter.NONE) {
-            traceList = this.traceDao.selectSpans(transactionIdList);
+        if (filter == Filter.acceptAllFilter()) {
+            List<GetTraceInfo> getTraceInfoList = new ArrayList<>(transactionIdList.size());
+            for (TransactionId transactionId : transactionIdList) {
+                getTraceInfoList.add(new GetTraceInfo(transactionId));
+            }
+            traceList = this.traceDao.selectSpans(getTraceInfoList);
         } else {
             traceList = this.traceDao.selectAllSpans(transactionIdList);
         }
@@ -243,7 +248,7 @@ public class TransactionInfoServiceImpl implements TransactionInfoService {
             return 0;
         }
         Align align = alignList.get(0);
-        return align.getLastTime();
+        return align.getEndTime();
     }
 
     private Align findViewPoint(List<Align> alignList, long focusTimestamp, String agentId, long spanId) {
